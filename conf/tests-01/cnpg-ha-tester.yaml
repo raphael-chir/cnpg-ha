@@ -1,0 +1,57 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cnpg-ha-tester
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: edbpg-control-plane
+  tolerations:
+  - key: "node-role.kubernetes.io/control-plane"
+    operator: "Exists"
+    effect: "NoSchedule"
+  containers:
+  - name: tester
+    image: postgres:16
+    command: [ "/bin/bash", "-c" ]
+    args:
+    - |
+      export PGCONNECT_TIMEOUT=1
+      export PGPASSWORD=uN3i1Hh0bYbCc4TyVAacBhmSzgqtzqxmOVjAn0QIChsJrSmu9PY2fw2q8EKKLpZ9
+      echo "⏱️  Starting at : $(date)"
+      echo "------------------------------"
+      ERRORS=0
+      START_DOWNTIME=""
+      IN_DOWNTIME=0
+      psql -h cluster-example-rw -U postgres -c "create table if not exists tt (date timestamp);"
+      while true; do
+        NOW=$(date '+%Y-%m-%d %H:%M:%S.%3N')
+        psql -h cluster-example-rw -U postgres -c "insert into tt values(now());" &>/dev/null
+        if [ $? -ne 0 ]; then
+          ERRORS=$((ERRORS + 1))
+          if [ $IN_DOWNTIME -eq 0 ]; then
+            START_TS=$(date +%s%3N) # timestamp en millisecondes
+            START_DOWNTIME=$(date '+%Y-%m-%d %H:%M:%S.%3N') 
+            IN_DOWNTIME=1
+            echo "❌ Unavailability start at : $START_DOWNTIME"
+          fi
+        else
+          if [ $IN_DOWNTIME -eq 1 ]; then
+            END_TS=$(date +%s%3N)
+            END_DOWNTIME=$(date '+%Y-%m-%d %H:%M:%S.%3N')
+
+            DIFF_MS=$((END_TS - START_TS))
+            DIFF_SEC=$((DIFF_MS / 1000))
+            DIFF_MS_REST=$((DIFF_MS % 1000))
+
+            echo "✅ Unavailability ended at : $END_DOWNTIME"
+            echo "⌛ Unavailability duration: ${DIFF_SEC}.${DIFF_MS_REST}s"
+            echo "------------------------------"
+
+            IN_DOWNTIME=0
+          fi
+        fi
+        sleep 1
+      done
+    env:
+    - name: PGPASSWORD
+      value: "postgres"

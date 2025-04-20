@@ -1,0 +1,85 @@
+apiVersion: v1
+data:
+  password: dU4zaTFIaDBiWWJDYzRUeVZBYWNCaG1TemdxdHpxeG1PVmpBbjBRSUNoc0pyU211OVBZMmZ3MnE4RUtLTHBaOQ==
+  username: cG9zdGdyZXM=
+kind: Secret
+metadata:
+  name: cluster-example-superuser
+type: kubernetes.io/basic-auth
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: cluster-example
+spec:
+  instances: 3
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.4
+  enableSuperuserAccess: true
+
+  # Reduce the frequency of standby HA slots updates to once every 5 minutes
+  replicationSlots:
+    highAvailability:
+      enabled: true
+    #updateInterval: 300
+
+  postgresql:
+
+    parameters:
+      # pg_stat_statements.max: "10000"
+      # pg_stat_statements.track: "all"
+      wal_level: "logical"
+      max_replication_slots: "10"
+      max_wal_senders: "10"
+      log_min_messages: "info"
+      log_replication_commands: "on"
+    pg_hba:
+    - host replication all all trust
+    - host all all 0.0.0.0/0 md5
+
+  storage:
+    size: 1Gi
+  walStorage:
+    size: 1Gi
+  tablespaces:
+  - name: idx
+    storage:
+      size: 1Gi
+  - name: tmptbs
+    temporary: true
+    storage:
+      size: 1Gi
+
+  monitoring:
+    enablePodMonitor: true
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "0.4"
+    limits:
+      memory: "1Gi"
+      cpu: "0.4"
+  #affinity:
+  #  nodeSelector:
+  #    workload: dc1
+
+  backup:
+    #target: "prefer-standby"
+    barmanObjectStore:
+      destinationPath: "s3://cnp/"
+      #Minio local ip
+      endpointURL: "http://minio:9000"
+      s3Credentials:
+        accessKeyId:
+          name: minio-creds
+          key: MINIO_ACCESS_KEY
+        secretAccessKey:
+          name: minio-creds
+          key: MINIO_SECRET_KEY
+      data:
+        immediateCheckpoint: true
+      #wal:
+      #  compression: gzip
+      #  maxParallel: 8
+      #  encryption: AES256
+    retentionPolicy: "1d"
