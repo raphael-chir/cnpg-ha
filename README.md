@@ -85,10 +85,8 @@ kubectl cnpg psql cluster-example
 It avoids to install psql and connect to the rw service cluster-example-rw  
 Then you can explore with psql and insert the sample of data
 ```
-postgres=# \i data.sql
+kubectl cnpg psql cluster-example < data.sql
 ```
-(Or outside the psql shell)
-
 --> Verify that data are replicated on the replicas
 
 ### Operate your PG cluster
@@ -180,6 +178,11 @@ kubectl cnpg fencing off cluster-example cluster-example-2
 Scale out your cluster
 ```
 kubectl scale cluster cluster-restore --replicas=3
+```
+
+### SQL GUI Clients
+```
+kubectl cnpg pgadmin4 cluster-example
 ```
 
 ## Tests plan
