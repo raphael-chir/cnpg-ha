@@ -2,7 +2,6 @@ apiVersion: v1
 data:
   # The password is base64 encoded : uN3i1Hh0bYbCc4TyVAacBhmSzgqtzqxmOVjAn0QIChsJrSmu9PY2fw2q8EKKLpZ9
   password: dU4zaTFIaDBiWWJDYzRUeVZBYWNCaG1TemdxdHpxeG1PVmpBbjBRSUNoc0pyU211OVBZMmZ3MnE4RUtLTHBaOQ==
-  # The username is base64 encoded : postgres
   username: cG9zdGdyZXM=
 kind: Secret
 metadata:
@@ -15,41 +14,32 @@ metadata:
   name: cluster-example
 spec:
   instances: 3
-  imageName: ghcr.io/cloudnative-pg/postgresql:16.8
+  #imageName: ghcr.io/cloudnative-pg/postgresql:16.4
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.9-1-bookworm@sha256:cf533c5f141b13a327d4678f49a1ace3bd5475f847e08d33b33255fde85717dc
   enableSuperuserAccess: true
-  # minSyncReplicas: 0
-  # maxSyncReplicas: 1
 
   # Reduce the frequency of standby HA slots updates to once every 5 minutes
   replicationSlots:
     highAvailability:
       enabled: true
-    #updateInterval: 300
-
-  smartShutdownTimeout: 5
-    # switchoverDelay: 1
-    # failoverDelay: 1
-    # livenessProbeTimeout: 5
-
-    # probes:
-    #   liveness:
-    #     initialDelaySeconds: 30
-    #     timeoutSeconds: 1
-    #     periodSeconds: 1
-    #     failureThreshold: 1
 
   postgresql:
+
+    synchronous:
+      method: any
+      number: 1
+      # preferred: Focuses on self-healing and high availability by automatically 
+      # disabling synchronous replication when no replicas are available in the cluster.
+      dataDurability: preferred
+
     parameters:
       pg_stat_statements.max: "10000"
-      pg_stat_statements.track: "all"
-      wal_level: "logical"
-      max_replication_slots: "10"
-      max_wal_senders: "10"
-      log_min_messages: "info"
-      log_replication_commands: "on"
-    pg_hba:
-    - host replication all all trust
-    - host all all 0.0.0.0/0 md5
+      pg_stat_statements.track: all
+      #timezone: "Europe/Amsterdam"
+      #"pgaudit.log": "all, -misc"
+      #"pgaudit.log_catalog": "off"
+      #"pgaudit.log_parameter": "on"
+      #"pgaudit.log_relation": "on"
 
   storage:
     size: 1Gi
@@ -67,15 +57,6 @@ spec:
   monitoring:
     enablePodMonitor: true
 
-  # Resources below impact RTO on promote 
-  # resources:
-  #   requests:
-  #     memory: "256Mi"
-  #     cpu: "0.4"
-  #   limits:
-  #     memory: "300Gi"
-  #     cpu: "0.4"
-
   backup:
     #target: "prefer-standby"
     barmanObjectStore:
@@ -89,11 +70,10 @@ spec:
         secretAccessKey:
           name: minio-creds
           key: MINIO_SECRET_KEY
-      wal:
-        compression: gzip
-        maxParallel: 3
       data:
-        compression: gzip
-        immediateCheckpoint: false
-        jobs: 2
+        immediateCheckpoint: true
+      #wal:
+      #  compression: gzip
+      #  maxParallel: 8
+      #  encryption: AES256
     retentionPolicy: "1d"
