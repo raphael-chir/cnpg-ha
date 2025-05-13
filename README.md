@@ -42,6 +42,7 @@ These compomemts are installed automatically with vagrant
 - SSH into it with vagrant ssh k8s  
 - Control the topology of your k8s cluster with kubectl get nodes  
 - Verify in docker side that you have 4 kind containers + 1 minio containers    
+- Access to minio
 - All following command are launched from the VM !!  
 
 ### CNPG Operator installation
@@ -88,6 +89,12 @@ Then you can explore with psql and insert the sample of data
 kubectl cnpg psql cluster-example < data.sql
 ```
 --> Verify that data are replicated on the replicas
+
+```
+select o.id, c.name, p.name, o.quantity, o.total_price from orders o
+join customers c on o.customer_id = c.id
+join products p on o.product_id = p.id;
+```
 
 ### Operate your PG cluster
 Access to Prometheus dashboard and see cnpg metrics
