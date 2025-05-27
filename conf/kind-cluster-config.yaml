@@ -3,22 +3,29 @@ kind: Cluster
 name: edbpg
 nodes:
 - role: control-plane
-  image: kindest/node:v1.30.0
+  image: kindest/node:v1.32.5
+  extraPortMappings:
+  # grafana
+  - containerPort: 80
+    hostPort: 3000
+  # prometheus
+  - containerPort: 9090
+    hostPort: 9090
   labels:
     topology.kubernetes.io/region: region-1
     topology.kubernetes.io/zone: zone-1a
 - role: worker
-  image: kindest/node:v1.30.0
+  image: kindest/node:v1.32.5
   labels:
     topology.kubernetes.io/region: region-1
     topology.kubernetes.io/zone: zone-1a
 - role: worker
-  image: kindest/node:v1.30.0
+  image: kindest/node:v1.32.5
   labels:
     topology.kubernetes.io/region: region-1
     topology.kubernetes.io/zone: zone-1b
 - role: worker
-  image: kindest/node:v1.30.0
+  image: kindest/node:v1.32.5
   labels:
     topology.kubernetes.io/region: region-1
     topology.kubernetes.io/zone: zone-1c
