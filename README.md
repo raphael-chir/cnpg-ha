@@ -55,9 +55,23 @@ kubectl apply --server-side -f \
 kubectl get namespaces
 kubectl get deployments.apps -n cnpg-system 
 ```
-Look the features of CNPG plugin
+Look the features of CNPG plugin  
+If not installed, you can launch this command : 
+```
+curl -sSfL \
+  https://github.com/cloudnative-pg/cloudnative-pg/raw/main/hack/install-cnpg-plugin.sh | \
+  sudo sh -s -- -b /usr/local/bin
+
+```
+
 ```
 kubectl cnpg
+```
+If not installed 
+```
+curl -sSfL \
+  https://github.com/cloudnative-pg/cloudnative-pg/raw/main/hack/install-cnpg-plugin.sh | \
+  sudo sh -s -- -b /usr/local/bin
 ```
 ### Deploy a PostgreSQL cluster
 - Change directory to `/vagrant/conf/test-00` to directly access manifests
@@ -231,3 +245,11 @@ CREATE TABLE
 ------------------------------
 ```
 Try to decrease Unavailability with tuning configuration. Use a retry strategy ...
+
+## Troubleshooting tools
+
+If you need curl and jq, instead of using busybox try :
+```
+kubectl run curl-jq --image=alpine -it --rm --restart=Never -- sh
+apk add --no-cache curl jq
+```
