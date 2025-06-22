@@ -208,10 +208,7 @@ As we use cnpg operator 1.25, we need to import one or more existing PostgreSQL 
 kubectl apply -f cluster-example-upgrade-16-to-17.yaml
 ```
 
-CloudNativePG supports three methods for performing major upgrades:
-- Logical dump/restore – Blue/green deployment, offline.
-- Native logical replication – Blue/green deployment, online.
-- Physical with pg_upgrade – In-place upgrade, offline (covered in the "Offline In-Place Major Upgrades" section below)- (from operator 1.26)
+Since CNPG Operator 1.26, CloudNativePG supports Physical upgrade with pg_upgrade – In-place upgrade, offline - for performing major upgrades
 
 Use in cluster-example.yaml manifest this image :  
 ```
@@ -220,7 +217,14 @@ ghcr.io/cloudnative-pg/postgresql:17.5-7-bookworm
 The apply and take a look on the pods
 
 ### Resiliency
-Fence a replica to avoid that it is elected as a primary (simulate a corrupt replica)
+
+1 - Scale out your cluster
+```
+kubectl scale cluster cluster-restore --replicas=3
+```
+2 - Delete the primary pod of your cluster to see failover in action
+
+3 - Fence a replica to avoid that it is elected as a primary (simulate a corrupt replica)
 ```
 kubectl cnpg fencing on cluster-example cluster-example-2
 ```
@@ -229,17 +233,12 @@ Unfence the replica (as it would be ok)
 ```
 kubectl cnpg fencing off cluster-example cluster-example-2
 ```
-Scale out your cluster
-```
-kubectl scale cluster cluster-restore --replicas=3
-```
 
 ### SQL GUI Clients
 ```
-kubectl cnpg pgadmin4 cluster-example
+kubectl cnpg pgadmin4 --mode desktop cluster-example
 ```
-(creds user@pgadmin.com/kuM6AqD94X4ow90P1xVs0avfNq0qA6VM)
-
+(if needed creds user@pgadmin.com/kuM6AqD94X4ow90P1xVs0avfNq0qA6VM)
 
 ## Tests plan
 | Tests                                   | Comments                                                                                       |
