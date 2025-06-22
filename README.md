@@ -100,6 +100,10 @@ kubectl get pv
 kubectl get secrets
 kubectl get configmaps
 ```
+Tips to see the term status in realtime
+```
+watch -n 1 -c kubectl cnpg --color always status cluster-example
+```
 
 ```
 kubectl get clusters
@@ -240,7 +244,25 @@ kubectl cnpg pgadmin4 --mode desktop cluster-example
 ```
 (if needed creds user@pgadmin.com/kuM6AqD94X4ow90P1xVs0avfNq0qA6VM)
 
-## Tests plan
+### Performance tests
+
+Use pgbench, a tools that create 4 tables to simulate banking transactions.  
+First init the database
+```
+kubectl cnpg pgbench --job-name pgb-init cluster-example -- --initialize --scale 10
+```
+Scale is just the factor to multiply your table data. Base is for each tables :
+- pgbench_accounts = 100 000 rows
+- pgbench_branches =  1 row
+- pgbench_tellers = 10 rows
+- pgbench_history = 0 row (feed during the test)
+
+Execute the workload and see the metrics in action in Grafana
+```
+kubectl cnpg pgbench --job-name pgb-run00 cluster-example -- --client 50 --time 180 --jobs 2
+```
+
+## HA Tests plan
 | Tests                                   | Comments                                                                                       |
 |----------------------------------------|------------------------------------------------------------------------------------------------|
 | Switchover / Promote                   | kubectl cnpg promote cluster-example cluster-example-2`                                       |
