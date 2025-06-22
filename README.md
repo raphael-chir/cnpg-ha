@@ -45,6 +45,17 @@ These compomemts are installed automatically with vagrant
 - Access to minio
 - All following command are launched from the VM !!  
 
+Verify that you can access to minio UI. Duplicate your webssh and target 9001 port. (creds are admin/password).
+Note that minio is not part of k8s, it is a simple docker container. List the running container on your environment:
+```
+docker ps
+```
+### Documentation
+https://cloudnative-pg.io/documentation/1.25/  
+
+### CNPG API :   
+https://cloudnative-pg.io/documentation/1.25/cloudnative-pg.v1/
+
 ### CNPG Operator installation
 First install the operator : 
 ```
@@ -55,26 +66,24 @@ kubectl apply --server-side -f \
 kubectl get namespaces
 kubectl get deployments.apps -n cnpg-system 
 ```
-Look the features of CNPG plugin  
-If not installed, you can launch this command : 
+See the new objects created by the operator
+```
+kubectl api-resources
+```
+### CNPG plugin for kubectl
 ```
 curl -sSfL \
   https://github.com/cloudnative-pg/cloudnative-pg/raw/main/hack/install-cnpg-plugin.sh | \
   sudo sh -s -- -b /usr/local/bin
 
 ```
-
+Then
 ```
 kubectl cnpg
 ```
-If not installed 
-```
-curl -sSfL \
-  https://github.com/cloudnative-pg/cloudnative-pg/raw/main/hack/install-cnpg-plugin.sh | \
-  sudo sh -s -- -b /usr/local/bin
-```
+
 ### Deploy a PostgreSQL cluster
-- Change directory to `/vagrant/conf/test-00` to directly access manifests
+- Change directory to `/vagrant/conf/test-00` (local) or `~/cnpg-ha/conf/tests-00` (labs) to directly access manifests
 - Take a look on cluster-example.yaml
 - You should consider the CNPG API references https://cloudnative-pg.io/documentation/1.25/cloudnative-pg.v1/
 - Install the pg cluster in the default namespace
@@ -90,6 +99,10 @@ kubectl get pvc
 kubectl get pv
 kubectl get secrets
 kubectl get configmaps
+```
+
+```
+kubectl get clusters
 ```
 ### Operate your data with psql
 
@@ -111,16 +124,18 @@ join products p on o.product_id = p.id;
 ```
 
 ### Operate your PG cluster
+
+In another panel or web browser tab, open the flows.  
 Access to Prometheus dashboard and see cnpg metrics
 ```
-kubectl port-forward services/prometheus-community-kube-prometheus 9090:9090 --address 0.0.0.0
+kubectl -n monitoring port-forward services/prometheus-community-kube-prometheus 9090:9090 --address 0.0.0.0 &
 ```
-Access to grafana
+Access to grafana (creds : admin/prom-operator)
 ```
-kubectl port-forward services/prometheus-community-grafana 3000:80 --address 0.0.0.0
+kubectl -n monitoring port-forward services/prometheus-community-grafana 3000:80 --address 0.0.0.0 &
 
 ```
-- Import the dashboard provided by CNPG
+- Import the dashboard provided by CNPG - https://cloudnative-pg.io/documentation/1.25/quickstart/#grafana-dashboard
 - Change the window frame to the last 5 minutes
 
 Promote a new primary
@@ -186,6 +201,24 @@ ghcr.io/cloudnative-pg/postgresql:16.9-1-bookworm@sha256:cf533c5f141b13a327d4678
 - Then apply the manifest.
 - Use grafana to see the rolling upgrade in action with the new version of PostgreSQL
 
+### Major Upgrade  
+We will upgrade PostgreSQL from 16 to 17.
+As we use cnpg operator 1.25, we need to import one or more existing PostgreSQL databases inside a brand new CloudNativePG cluster. Use cluster-example-upgrade-16-to-17.yaml. This upgrade is based on the concept of online logical backups.
+```
+kubectl apply -f cluster-example-upgrade-16-to-17.yaml
+```
+
+CloudNativePG supports three methods for performing major upgrades:
+- Logical dump/restore – Blue/green deployment, offline.
+- Native logical replication – Blue/green deployment, online.
+- Physical with pg_upgrade – In-place upgrade, offline (covered in the "Offline In-Place Major Upgrades" section below)- (from operator 1.26)
+
+Use in cluster-example.yaml manifest this image :  
+```
+ghcr.io/cloudnative-pg/postgresql:17.5-7-bookworm
+```
+The apply and take a look on the pods
+
 ### Resiliency
 Fence a replica to avoid that it is elected as a primary (simulate a corrupt replica)
 ```
@@ -205,6 +238,8 @@ kubectl scale cluster cluster-restore --replicas=3
 ```
 kubectl cnpg pgadmin4 cluster-example
 ```
+(creds user@pgadmin.com/kuM6AqD94X4ow90P1xVs0avfNq0qA6VM)
+
 
 ## Tests plan
 | Tests                                   | Comments                                                                                       |

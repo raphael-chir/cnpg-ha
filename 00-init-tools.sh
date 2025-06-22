@@ -24,10 +24,7 @@ usermod -aG docker vagrant
 
 # Kind installation
 echo "➡ Kind installation"
-KIND_ARCH=$(uname -m)
-[ "$KIND_ARCH" = "x86_64" ] && KIND_URL="https://kind.sigs.k8s.io/dl/v0.27.0/kind-linux-amd64"
-[ "$KIND_ARCH" = "aarch64" ] && KIND_URL="https://kind.sigs.k8s.io/dl/v0.27.0/kind-linux-arm64"
-curl -Lo /usr/local/bin/kind $KIND_URL
+curl -Lo /usr/local/bin/kind https://kind.sigs.k8s.io/dl/v0.29.0/kind-linux-amd64
 chmod +x /usr/local/bin/kind
 
 # Helm installation
@@ -90,9 +87,20 @@ apt-get install -y postgresql-client-16
 helm repo add prometheus-community \
   https://prometheus-community.github.io/helm-charts
 
-helm upgrade --install \
+helm upgrade --install --namespace monitoring --create-namespace \
   -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/main/docs/src/samples/monitoring/kube-stack-config.yaml \
   prometheus-community \
   prometheus-community/kube-prometheus-stack
+
+# # Istio installation
+# export ISTIO_VERSION=1.26.0
+# curl -L https://istio.io/downloadIstio | sh -
+# mv istio-$ISTIO_VERSION /home/vagrant
+# export PATH=$PATH:/home/vagrant/istio-$ISTIO_VERSION/bin
+# chown -R vagrant:vagrant /home/vagrant/istio-$ISTIO_VERSION
+# /home/vagrant/istio-$ISTIO_VERSION/bin/istioctl install -y --set profile=demo
+# # Kiali installation
+# kubectl apply -f /vagrant/conf/custom-kiali.yaml
+
 
 echo " Tools installation finished"
