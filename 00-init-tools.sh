@@ -27,12 +27,12 @@ echo "➡ Kind installation"
 curl -Lo /usr/local/bin/kind https://kind.sigs.k8s.io/dl/v0.29.0/kind-linux-amd64
 chmod +x /usr/local/bin/kind
 
-# Helm installation
-echo "➡ Helm installation..."
-curl https://baltocdn.com/helm/signing.asc | gpg --dearmor -o /usr/share/keyrings/helm.gpg
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | tee /etc/apt/sources.list.d/helm-stable-debian.list
-apt-get update
-apt-get install -y helm
+# # Helm installation
+# echo "➡ Helm installation..."
+curl -fsSL https://packages.buildkite.com/helm-linux/helm-debian/gpgkey | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
+echo "deb [signed-by=/usr/share/keyrings/helm.gpg] https://packages.buildkite.com/helm-linux/helm-debian/any/ any main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+sudo apt-get update -y
+sudo apt-get install -y helm
 
 # Kubectl installation
 echo "➡ Kubectl installation ..."
@@ -53,11 +53,6 @@ kind create cluster --verbosity 9 --config /vagrant/conf/kind-cluster-config.yam
 mkdir -p /home/vagrant/.kube
 cp /root/.kube/config /home/vagrant/.kube/config
 chown vagrant:vagrant /home/vagrant/.kube/config
-
-# cnpg kubectl plugin installation
-curl -sSfL \
-  https://github.com/cloudnative-pg/cloudnative-pg/raw/main/hack/install-cnpg-plugin.sh | \
-  sudo sh -s -- -b /usr/local/bin
 
 # Minio Setup for backup
 docker run -p 9000:9000 -p 9001:9001 \
