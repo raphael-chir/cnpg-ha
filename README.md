@@ -1,7 +1,7 @@
 [![Generic badge](https://img.shields.io/badge/Version-1.0-<COLOR>.svg)](https://shields.io/)
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://GitHub.com/Naereen/StrapDown.js/graphs/commit-activity)
 ![Maintainer](https://img.shields.io/badge/maintainer-raphael.chir@gmail.com-blue)
-# Cloud Native PG - HA
+# Cloud Native PG - Demo
 ## Prerequisites for a local deployment
 
 ### 🖥️ Hardware Requirements  
@@ -26,17 +26,16 @@ Ensure the following software is installed:
 - **Vagrant:** `2.4.3`  
 
 ## Tests Architecture 
-These compomemts are installed automatically with vagrant  
+These components are installed automatically with vagrant  
 
-- Kind : 1 Control plane and 3 Worker nodes  
-- Kubectl : K8S CLI  
-- CNPG plugin : Kubectl plugin for cnpg  
-- CNPG : 1 Operator managing rw, r, ro postgresql instances 
+- Kind : 1 Control plane and 3 Worker nodes
+- Kubectl : K8S CLI + kubectl CNPG plugin
+- Cert-manager : for managing TLS (not ready yet)
 - Minio : Backups  
 - Client : Pod based on postgres:16 image deployed on the control-plane for tests purpose
 - Prometheus / Grafana : Explore cnpg metrics 
 
-## Start tests
+## Tests your initial config
 
 - Launch your VM with vagrant up k8s  
 - SSH into it with vagrant ssh k8s  
@@ -51,16 +50,21 @@ Note that minio is not part of k8s, it is a simple docker container. List the ru
 docker ps
 ```
 ### Documentation
-https://cloudnative-pg.io/documentation/1.25/  
+https://cloudnative-pg.io/documentation/1.27/  
 
 ### CNPG API :   
-https://cloudnative-pg.io/documentation/1.25/cloudnative-pg.v1/
+https://cloudnative-pg.io/documentation/1.27/cloudnative-pg.v1/
 
 ### CNPG Operator installation
 First install the operator : 
 ```
 kubectl apply --server-side -f \
-  https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.25/releases/cnpg-1.25.1.yaml
+  https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.27/releases/cnpg-1.27.1.yaml
+```
+And verify
+```
+kubectl rollout status deployment \
+  -n cnpg-system cnpg-controller-manager
 ```
 ```
 kubectl get namespaces
@@ -70,29 +74,29 @@ See the new objects created by the operator
 ```
 kubectl api-resources
 ```
-### CNPG plugin for kubectl
-```
-curl -sSfL \
-  https://github.com/cloudnative-pg/cloudnative-pg/raw/main/hack/install-cnpg-plugin.sh | \
-  sudo sh -s -- -b /usr/local/bin
 
+### Install Barman CNPG plugin
+Install cert-manager
 ```
-Then
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.18.2/cert-manager.yaml
 ```
-kubectl cnpg
+You can also install cmctl cli.
+```
+kubectl apply -f \
+        https://github.com/cloudnative-pg/plugin-barman-cloud/releases/download/v0.9.0/manifest.yaml
 ```
 
 ### Deploy a PostgreSQL cluster
-- Change directory to `/vagrant/conf/test-00` (local) or `~/cnpg-ha/conf/tests-00` (labs) to directly access manifests
-- Take a look on cluster-example.yaml
-- You should consider the CNPG API references https://cloudnative-pg.io/documentation/1.25/cloudnative-pg.v1/
+- Change directory to `/vagrant/manifests` (local) or `~/cnpg-ha/manifests` (labs) to directly access manifests
+- Take a look on pg-cluster.yaml
+- You should consider the CNPG API references https://cloudnative-pg.io/documentation/1.27/cloudnative-pg.v1/
 - Install the pg cluster in the default namespace
 ```
-kubectl apply -f cluster-example.yaml
+kubectl apply -f 00-pg-cluster.yaml
 ```
 Control the status and objects related to the cluster
 ```
-kubectl cnpg status cluster-example
+kubectl cnpg status pg-cluster
 kubectl get pods --label-columns role
 kubectl get services
 kubectl get pvc
@@ -102,9 +106,8 @@ kubectl get configmaps
 ```
 Tips to see the term status in realtime
 ```
-watch -n 1 -c kubectl cnpg --color always status cluster-example
+kubectl cnpg status pg-cluster
 ```
-
 ```
 kubectl get clusters
 ```
@@ -112,12 +115,12 @@ kubectl get clusters
 
 CNPG plugin comes with psql
 ```
-kubectl cnpg psql cluster-example
+kubectl cnpg psql pg-cluster
 ```
-It avoids to install psql and connect to the rw service cluster-example-rw  
+It avoids to install psql and connect to the rw service pg-cluster-rw  
 Then you can explore with psql and insert the sample of data
 ```
-kubectl cnpg psql cluster-example < data.sql
+kubectl cnpg psql pg-cluster < data.sql
 ```
 --> Verify that data are replicated on the replicas
 
@@ -144,7 +147,7 @@ kubectl -n monitoring port-forward services/prometheus-community-grafana 3000:80
 
 Promote a new primary
 ```
-kubectl cnpg promote cluster-example cluster-example-2
+kubectl cnpg promote pg-cluster pg-cluster-2
 ```
 Look each monitoring tool : 
 - cnpg status
@@ -156,7 +159,7 @@ kubectl get cluster
 
 ### Backup / Restore
 - Here we will perform a manual hot backup
-- Optional but best practices in prod : `echo "select pg_switch_wal()" | kubectl cnpg psql cluster-example`
+- Optional but best practices in prod : `echo "select pg_switch_wal()" | kubectl cnpg psql pg-cluster`
 - Then apply the backup manifest
 ```
 kubectl apply -f backup.yaml
@@ -304,8 +307,26 @@ Try to decrease Unavailability with tuning configuration. Use a retry strategy .
 
 ## Troubleshooting tools
 
-If you need curl and jq, instead of using busybox try :
+### If you need curl and jq, instead of using busybox try :
 ```
 kubectl run curl-jq --image=alpine -it --rm --restart=Never -- sh
 apk add --no-cache curl jq
 ```
+
+### How to test with a proxy between your k8s cluster in kind and minio in docker
+
+Try mitmproxy, deploy a docker container in your kind network
+```
+docker run --rm -it -p 8080:8080 -p 192.168.56.10:8081:8081 --name mitmproxy --network kind mitmproxy/mitmproxy mitmweb --web-host 0.0.0.0
+```
+Then go to the UI : http://192.168.56.10:8081/?<your token provide in the output of previous command>  
+
+Modify your cluster manifest by adding in spec section
+```
+  env:
+  - name: HTTP_PROXY
+    value: http://mitmproxy:8080
+```
+Apply the manifest
+
+

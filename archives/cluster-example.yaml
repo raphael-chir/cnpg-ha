@@ -14,8 +14,10 @@ metadata:
   name: cluster-example
 spec:
   instances: 3
-  imageName: ghcr.io/cloudnative-pg/postgresql:16.4
-  #imageName: ghcr.io/cloudnative-pg/postgresql:16.9-1-bookworm@sha256:cf533c5f141b13a327d4678f49a1ace3bd5475f847e08d33b33255fde85717dc
+  # See available images at https://github.com/cloudnative-pg/postgres-containers
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.4-5
+  #imageName: ghcr.io/cloudnative-pg/postgresql:16.8-6-bookworm
+  #imageName: ghcr.io/cloudnative-pg/postgresql:17.7-202511240807-minimal-bookworm
   enableSuperuserAccess: true
 
   # Reduce the frequency of standby HA slots updates to once every 5 minutes

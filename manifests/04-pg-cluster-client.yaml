@@ -16,16 +16,16 @@ spec:
     args:
     - |
       export PGCONNECT_TIMEOUT=1
-      export PGPASSWORD=uN3i1Hh0bYbCc4TyVAacBhmSzgqtzqxmOVjAn0QIChsJrSmu9PY2fw2q8EKKLpZ9
+      export PGPASSWORD=dba
       echo "⏱️  Starting at : $(date)"
       echo "------------------------------"
       ERRORS=0
       START_DOWNTIME=""
       IN_DOWNTIME=0
-      psql -h cluster-example-rw -U postgres -c "create table if not exists tt (date timestamp);"
+      psql -h pg-cluster-rw -U postgres -c "create table if not exists tt (date timestamp);"
       while true; do
         NOW=$(date '+%Y-%m-%d %H:%M:%S.%3N')
-        psql -h cluster-example-rw -U postgres -c "insert into tt values(now());" &>/dev/null
+        psql -h pg-cluster-rw -U postgres -c "insert into tt values(now());" &>/dev/null
         if [ $? -ne 0 ]; then
           ERRORS=$((ERRORS + 1))
           if [ $IN_DOWNTIME -eq 0 ]; then

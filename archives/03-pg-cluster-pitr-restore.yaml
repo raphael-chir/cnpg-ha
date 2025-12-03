@@ -1,0 +1,37 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: pitr-restored-pg-cluster
+spec:
+  instances: 1
+  # See available images at https://github.com/cloudnative-pg/postgres-containers
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.4-5
+  #imageName: ghcr.io/cloudnative-pg/postgresql:16.8-6-bookworm
+  #imageName: ghcr.io/cloudnative-pg/postgresql:17.7-202511240807-minimal-bookworm
+  imagePullPolicy: IfNotPresent
+  bootstrap:
+    recovery:
+      source: source
+      recoveryTarget:
+        targetTime: "2025-12-02T06:31:30"
+  externalClusters:
+  - name: source
+    plugin:
+      name: barman-cloud.cloudnative-pg.io
+      parameters:
+        barmanObjectName: minio-storage
+        serverName: pg-cluster
+  storage:
+    size: 1Gi
+  walStorage:
+    size: 1Gi
+  tablespaces:
+  - name: idx
+    storage:
+      size: 1Gi
+  - name: tmptbs
+    temporary: true
+    storage:
+      size: 1Gi
+  monitoring:
+    enablePodMonitor: true

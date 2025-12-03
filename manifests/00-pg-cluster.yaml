@@ -1,0 +1,72 @@
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: minio-storage
+spec:
+  configuration:
+    destinationPath: s3://backups/
+    endpointURL: http://minio:9000
+    s3Credentials:
+      accessKeyId:
+        name: minio-creds
+        key: MINIO_ACCESS_KEY
+      secretAccessKey:
+        name: minio-creds
+        key: MINIO_SECRET_KEY
+    wal:
+      compression: gzip
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: pg-cluster-superuser
+type: kubernetes.io/basic-auth
+data:
+  # dba
+  username: ZGJh
+  # dba
+  password: ZGJh
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: pg-cluster
+spec:
+  instances: 3
+  # See available images at https://github.com/cloudnative-pg/postgres-containers
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.4-5
+  #imageName: ghcr.io/cloudnative-pg/postgresql:16.8-6-bookworm
+  #imageName: ghcr.io/cloudnative-pg/postgresql:17.7-202511240807-minimal-bookworm
+  enableSuperuserAccess: true
+  primaryUpdateMethod: 'switchover'
+  smartShutdownTimeout: 5
+  postgresql:
+    synchronous:
+      method: any
+      number: 1
+      dataDurability: preferred
+    parameters:
+      pg_stat_statements.max: "10000"
+      pg_stat_statements.track: "all"
+    pg_hba:
+    - host replication all all trust
+    - host all all 0.0.0.0/0 md5
+  storage:
+    size: 1Gi
+  walStorage:
+    size: 1Gi
+  tablespaces:
+  - name: idx
+    storage:
+      size: 1Gi
+  - name: tmptbs
+    temporary: true
+    storage:
+      size: 1Gi
+  monitoring:
+    enablePodMonitor: true
+  plugins:
+  - name: barman-cloud.cloudnative-pg.io
+    isWALArchiver: true
+    parameters:
+      barmanObjectName: minio-storage

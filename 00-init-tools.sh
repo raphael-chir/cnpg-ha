@@ -24,7 +24,7 @@ usermod -aG docker vagrant
 
 # Kind installation
 echo "➡ Kind installation"
-curl -Lo /usr/local/bin/kind https://kind.sigs.k8s.io/dl/v0.29.0/kind-linux-amd64
+curl -Lo /usr/local/bin/kind https://kind.sigs.k8s.io/dl/v0.30.0/kind-linux-amd64
 chmod +x /usr/local/bin/kind
 
 # # Helm installation
@@ -36,15 +36,33 @@ sudo apt-get install -y helm
 
 # Kubectl installation
 echo "➡ Kubectl installation ..."
-curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.33/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /" | tee /etc/apt/sources.list.d/kubernetes.list
+echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.33/deb/ /" | tee /etc/apt/sources.list.d/kubernetes.list
 chmod 644 /etc/apt/sources.list.d/kubernetes.list
 apt-get update
 apt-get install -y kubectl
 
 # Kubectl autocompletion
 echo 'source <(kubectl completion bash)' | tee -a /root/.bashrc /home/vagrant/.bashrc > /dev/null
+
+# CNPG kubectl plugin installation
+curl -sSfL \
+  https://github.com/cloudnative-pg/cloudnative-pg/raw/main/hack/install-cnpg-plugin.sh | \
+  sudo sh -s -- -b /usr/local/bin
+
+# CNPG kubectl plugin autocompletion
+cat > kubectl_complete-cnpg <<EOF
+#!/usr/bin/env sh
+
+# Call the __complete command passing it all arguments
+kubectl cnpg __complete "\$@"
+EOF
+
+chmod +x kubectl_complete-cnpg
+
+# Important: the following command may require superuser permission
+sudo mv kubectl_complete-cnpg /usr/local/bin
 
 # Kind cluster creation
 kind create cluster --verbosity 9 --config /vagrant/conf/kind-cluster-config.yaml
@@ -87,15 +105,11 @@ helm upgrade --install --namespace monitoring --create-namespace \
   prometheus-community \
   prometheus-community/kube-prometheus-stack
 
-# # Istio installation
-# export ISTIO_VERSION=1.26.0
-# curl -L https://istio.io/downloadIstio | sh -
-# mv istio-$ISTIO_VERSION /home/vagrant
-# export PATH=$PATH:/home/vagrant/istio-$ISTIO_VERSION/bin
-# chown -R vagrant:vagrant /home/vagrant/istio-$ISTIO_VERSION
-# /home/vagrant/istio-$ISTIO_VERSION/bin/istioctl install -y --set profile=demo
-# # Kiali installation
-# kubectl apply -f /vagrant/conf/custom-kiali.yaml
+# Install cert-manager
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
 
+# Install cmctl
+curl -fsSL -o /usr/local/bin/cmctl https://github.com/cert-manager/cmctl/releases/latest/download/cmctl_linux_amd64
+chmod +x /usr/local/bin/cmctl
 
 echo " Tools installation finished"
