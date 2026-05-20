@@ -1,4 +1,12 @@
 apiVersion: v1
+kind: Secret
+metadata:
+  name: pg-conn
+type: Opaque
+stringData:
+  DATABASE_URL: "postgresql://app:af6liaLc24cVJjxYduDtRXcLVMcgglVydH8eWYTi7IaUY314GZl1drHzedynA2Hn@region-a-proxy.default.svc.cluster.local:5432/app?connect_timeout=1&target_session_attrs=read-write"
+---
+apiVersion: v1
 kind: Pod
 metadata:
   name: cnpg-ha-tester
@@ -11,25 +19,23 @@ spec:
     effect: "NoSchedule"
   containers:
   - name: tester
-    image: postgres:16
+    image: postgres:17
     command: [ "/bin/bash", "-c" ]
     args:
     - |
-      export PGCONNECT_TIMEOUT=1
-      export PGPASSWORD=dba
       echo "⏱️  Starting at : $(date)"
       echo "------------------------------"
       ERRORS=0
       START_DOWNTIME=""
       IN_DOWNTIME=0
-      psql -h pg-cluster-rw -U postgres -c "create table if not exists tt (date timestamp);"
+      psql "$DATABASE_URL" -c "create table if not exists tt (date timestamp);"
       while true; do
         NOW=$(date '+%Y-%m-%d %H:%M:%S.%3N')
-        psql -h pg-cluster-rw -U postgres -c "insert into tt values(now());" &>/dev/null
+        psql "$DATABASE_URL" -c "insert into tt values(now());" &>/dev/null
         if [ $? -ne 0 ]; then
           ERRORS=$((ERRORS + 1))
           if [ $IN_DOWNTIME -eq 0 ]; then
-            START_TS=$(date +%s%3N) # timestamp en millisecondes
+            START_TS=$(date +%s%3N)
             START_DOWNTIME=$(date '+%Y-%m-%d %H:%M:%S.%3N') 
             IN_DOWNTIME=1
             echo "❌ Unavailability start at : $START_DOWNTIME"
@@ -53,5 +59,8 @@ spec:
         sleep 1
       done
     env:
-    - name: PGPASSWORD
-      value: "postgres"
+    - name: DATABASE_URL
+      valueFrom:
+        secretKeyRef:
+          name: pg-conn
+          key: DATABASE_URL

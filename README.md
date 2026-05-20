@@ -22,17 +22,18 @@ Codename:       noble
 ### 🛠️ Software Dependencies  
 Ensure the following software is installed:  
 
-- **VirtualBox:** `7.x`  
-- **Vagrant:** `2.4.3`  
+- **libvirt:** `10.0.0`
+- **QEMU** `QEMU emulator version 8.2.2` 
+- **KMS** `6.17.0-19-generic`    
+- **Vagrant:** `2.4.9`  
 
 ## Tests Architecture 
 These components are installed automatically with vagrant  
 
-- Kind : 1 Control plane and 3 Worker nodes
-- Kubectl : K8S CLI + kubectl CNPG plugin
-- Cert-manager : for managing TLS (not ready yet)
+- Kind : 1 Control plane and 3 Worker nodes  
+- Kubectl : K8S CLI + kubectl CNPG plugin  
+- Cert-manager : for managing TLS (not ready yet)  
 - Minio : Backups  
-- Client : Pod based on postgres:16 image deployed on the control-plane for tests purpose
 - Prometheus / Grafana : Explore cnpg metrics 
 
 ## Tests your initial config
@@ -50,53 +51,46 @@ Note that minio is not part of k8s, it is a simple docker container. List the ru
 docker ps
 ```
 ### Documentation
-https://cloudnative-pg.io/documentation/1.27/  
+https://cloudnative-pg.io/docs/1.28/
 
-### CNPG API :   
-https://cloudnative-pg.io/documentation/1.27/cloudnative-pg.v1/
 
 ### CNPG Operator installation
 First install the operator : 
 ```
 kubectl apply --server-side -f \
-  https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.27/releases/cnpg-1.27.1.yaml
+  https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.28/releases/cnpg-1.28.1.yaml
 ```
 And verify
 ```
 kubectl rollout status deployment \
   -n cnpg-system cnpg-controller-manager
 ```
-```
-kubectl get namespaces
-kubectl get deployments.apps -n cnpg-system 
-```
+
 See the new objects created by the operator
 ```
 kubectl api-resources
 ```
 
 ### Install Barman CNPG plugin
-Install cert-manager
-```
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.18.2/cert-manager.yaml
-```
-You can also install cmctl cli.
 ```
 kubectl apply -f \
-        https://github.com/cloudnative-pg/plugin-barman-cloud/releases/download/v0.9.0/manifest.yaml
+        https://github.com/cloudnative-pg/plugin-barman-cloud/releases/download/v0.11.0/manifest.yaml
 ```
-
+And verify
+```
+kubectl rollout status deployment \
+  -n cnpg-system barman-cloud
+```
 ### Deploy a PostgreSQL cluster
 - Change directory to `/vagrant/manifests` (local) or `~/cnpg-ha/manifests` (labs) to directly access manifests
 - Take a look on pg-cluster.yaml
-- You should consider the CNPG API references https://cloudnative-pg.io/documentation/1.27/cloudnative-pg.v1/
+- You should consider the CNPG API references https://cloudnative-pg.io/docs/1.28/cloudnative-pg.v1  
 - Install the pg cluster in the default namespace
 ```
 kubectl apply -f 00-pg-cluster.yaml
 ```
 Control the status and objects related to the cluster
 ```
-kubectl cnpg status pg-cluster
 kubectl get pods --label-columns role
 kubectl get services
 kubectl get pvc
@@ -104,10 +98,11 @@ kubectl get pv
 kubectl get secrets
 kubectl get configmaps
 ```
-Tips to see the term status in realtime
+See cluster status
 ```
 kubectl cnpg status pg-cluster
 ```
+
 ```
 kubectl get clusters
 ```
@@ -162,11 +157,11 @@ kubectl get cluster
 - Optional but best practices in prod : `echo "select pg_switch_wal()" | kubectl cnpg psql pg-cluster`
 - Then apply the backup manifest
 ```
-kubectl apply -f backup.yaml
+kubectl apply -f 01-pg-cluster-backup.yaml
 ```
 See the status of the backup 
 ```
-kubectl describe backups.postgresql.cnpg.io backup-test
+kubectl describe backups.postgresql.cnpg.io pg-backup
 ```
 --> Go to minio to see the backup
 
@@ -329,4 +324,164 @@ Modify your cluster manifest by adding in spec section
 ```
 Apply the manifest
 
+## CRC / OpenShift
+
+### CRC parameters
+```
+crc config --help
+```
+Before starting crc
+```
+crc config view
+crc setup check
+```
+
+If you want to get your credentials :
+```
+crc console --credentials
+```
+### OLM - Operator Lifecycle Manager
+To install CNPG on CRC/Openshift we :  
+1 - Create cnpg-system namespaces  
+2 - Apply a Security Context Constraints (SCC) to cnpg-system  
+3 - Create an OperatorGroup to define the target namespaces it can operate.  
+4 - Explore the package manifests to find out operator, source and channel  
+5 - Create Subscription bases on the desired version of operator  
+6 - Check the status of the operator  
+7 - Test a deployment   
+8 - Clean all
+
+#### cnpg-system
+First create cnpg-system namespace where CNPG operator will live.
+```
+oc create ns cnpg-system
+```
+Before deploying anything in that namespace, give it some rights policy
+```
+oc adm policy add-scc-to-group anyuid system:serviceaccounts:cnpg-system
+```
+#### Create OperatorGroup
+Now we open the operator scope to cluster-wide instead of doing it namespace by namespace. Here a manifest to apply, note that there is no restrictions to specific namespaces.
+```
+oc apply -f - <<'EOF'
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: cnpg-og
+  namespace: cnpg-system
+spec:
+  targetNamespaces: []
+EOF
+```
+#### Create Subscription
+We verify that the community certified operator CNPG is available
+```
+oc get packagemanifests -n openshift-marketplace | grep -i cloudnative-pg
+```
+Define what you want to install.
+Take a look on channel to get the desired version
+```
+oc get packagemanifest cloudnative-pg \
+  -n openshift-marketplace \
+  -o jsonpath='{.status.channels[*].name}'
+```
+Or the default channel
+```
+oc get packagemanifest cloudnative-pg \
+-n openshift-marketplace \
+-o jsonpath='{.status.defaultChannel}'
+```
+Apply this manifest
+```
+CHANNEL=$(oc get packagemanifest cloudnative-pg -n openshift-marketplace -o jsonpath='{.status.defaultChannel}')
+oc apply -f - <<EOF
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: cloudnative-pg
+  namespace: cnpg-system
+spec:
+  name: cloudnative-pg
+  channel: ${CHANNEL}
+  source: certified-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Automatic
+EOF
+```
+#### Check status
+csv = Cluster Service Version representing the installed operator
+```
+oc get csv -n cnpg-system -w
+```
+Verify if SCC policy is really applied
+```
+oc -n <user-ns> get pod <pod> -o jsonpath='{.metadata.annotations.openshift\.io/scc}{"\n"}'
+```
+#### Test a deployment
+Here is what we configure :
+```
+cnpg-system
+   └── operator
+
+team-a
+   └── cluster postgres
+
+team-b
+   └── cluster postgres
+
+team-c
+   └── cluster postgres
+```
+Quick test
+```
+oc apply -f - <<'EOF'                             
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: pg1
+  namespace: user-a
+spec:
+  instances: 1
+  storage:
+    size: 5Gi
+EOF
+
+```
+
+#### Clean all 
+```
+oc -n cnpg-system delete subscription cloudnative-pg --ignore-not-found=true
+oc -n cnpg-system delete csv --all --ignore-not-found=true
+oc -n cnpg-system delete installplan --all --ignore-not-found=true
+
+oc delete ns cnpg-system --ignore-not-found=true
+
+oc get crd | grep 'postgresql.cnpg.io' | awk '{print $1}' | xargs -r oc delete crd
+
+# For users namespaces do
+oc delete ns user-a --ignore-not-found=true
+
+oc get crd | grep 'postgresql.cnpg.io' || echo "OK: no more CRDs CNPG"
+oc get ns | egrep 'cnpg-system|user-a' || echo "OK: namespaces deleted"
+```
+
+If you don't use OLM, here is a few commands to deploy CNPG Operator :
+```bash
+# Create namespace
+oc create namespace cnpg-system
+# Apply anyuid scc to cnpg-system
+oc adm policy add-scc-to-group anyuid system:serviceaccounts:cnpg-system
+# Patch anyuid rule
+oc patch scc anyuid --type=merge -p '{
+  "seccompProfiles": ["runtime/default","unconfined"],
+  "defaultSeccompProfile": "runtime/default"
+}'
+# Deploy CNPG Operator
+oc apply --server-side --force-conflicts -f \
+https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.28/releases/cnpg-1.28.0.yaml 
+```
+If you need to restart the deployment
+```bash
+ oc -n cnpg-system rollout restart deploy cnpg-controller-manager
+```
 

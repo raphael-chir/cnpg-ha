@@ -1,3 +1,4 @@
+---
 apiVersion: barmancloud.cnpg.io/v1
 kind: ObjectStore
 metadata:
@@ -22,10 +23,10 @@ metadata:
   name: pg-cluster-superuser
 type: kubernetes.io/basic-auth
 data:
-  # dba
-  username: ZGJh
-  # dba
-  password: ZGJh
+  # postgres
+  username: cG9zdGdyZXM=
+  # postgres
+  password: cG9zdGdyZXM=
 ---
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
@@ -38,6 +39,8 @@ spec:
   #imageName: ghcr.io/cloudnative-pg/postgresql:16.8-6-bookworm
   #imageName: ghcr.io/cloudnative-pg/postgresql:17.7-202511240807-minimal-bookworm
   enableSuperuserAccess: true
+  superuserSecret:
+    name: cluster-example-superuser
   primaryUpdateMethod: 'switchover'
   smartShutdownTimeout: 5
   postgresql:
